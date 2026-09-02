@@ -1,0 +1,17 @@
+{
+  "name": "HELIOGUARD ARABIA v1.0.2 — Bilingual Consistency Fix",
+  "short_name": "HELIOGUARD v1.0.2",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#030711",
+  "theme_color": "#06101d",
+  "icons": [
+    {
+      "src": "assets/helioguard-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "lang": "ar"
+}

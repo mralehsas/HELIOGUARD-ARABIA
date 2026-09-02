@@ -1,0 +1,13 @@
+{
+  "version": "1.0.1",
+  "static_html_ids": 240,
+  "duplicate_static_ids": [],
+  "literal_javascript_id_references": 195,
+  "missing_referenced_ids": [],
+  "fatal_selector_typo_present": false,
+  "language_button": "PASS",
+  "about_button": "PASS",
+  "language_initialization": "PASS",
+  "about_language_sections": "PASS",
+  "browser_harness": "PASS"
+}

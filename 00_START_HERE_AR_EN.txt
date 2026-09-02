@@ -1,0 +1,15 @@
+﻿ابدأ من هنا | START HERE
+
+العربية:
+1) فك الضغط كاملًا.
+2) شغّل START_HELIOGUARD.bat.
+3) اترك نافذة الخادم مفتوحة.
+4) استخدم EN / AR لتبديل اللغة.
+
+English:
+1) Extract the complete ZIP package.
+2) Run START_HELIOGUARD.bat.
+3) Keep the server window open.
+4) Use EN / AR to switch the interface language.
+
+Address: http://127.0.0.1:8080/index.html

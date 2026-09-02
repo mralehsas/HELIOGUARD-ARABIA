@@ -1,0 +1,20 @@
+{
+  "version": "1.0.3",
+  "initial_state": "Disconnected",
+  "automatic_network_on_start": false,
+  "connect_trigger": "refreshBtn / Connect Live",
+  "operational_source_count": 8,
+  "diagnostic_service_count": 10,
+  "language_modes": {
+    "ar": {
+      "dir": "rtl",
+      "masterStatus": "غير متصل",
+      "connectButton": "اتصال حي"
+    },
+    "en": {
+      "dir": "ltr",
+      "masterStatus": "Disconnected",
+      "connectButton": "Connect Live"
+    }
+  }
+}
