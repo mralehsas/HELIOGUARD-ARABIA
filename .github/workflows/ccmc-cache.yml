@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/ccmc-cache.yml'
+      - '.github/scripts/refresh_ccmc_cache.py'
 
 permissions:
   contents: write
@@ -24,69 +25,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fetch NASA CCMC Scoreboard server-side
+      - name: Fetch and validate NASA CCMC Scoreboard
         shell: bash
         run: |
-          mkdir -p data
-          python - <<'PY'
-          import json, urllib.parse, urllib.request
-          from datetime import datetime, timedelta, timezone
-          from pathlib import Path
-
-          BASE='https://kauai.ccmc.gsfc.nasa.gov/CMEscoreboard/WS/get/predictions'
-          now=datetime.now(timezone.utc)
-
-          def fetch(days, closed_only, skip_no_arrival, out):
-              start=(now-timedelta(days=days)).date().isoformat()
-              end=now.date().isoformat()
-              q=urllib.parse.urlencode({
-                  'CMEtimeStart':start,
-                  'CMEtimeEnd':end,
-                  'skipNoArrivalObservedCMEs':str(skip_no_arrival).lower(),
-                  'closeOutCMEsOnly':str(closed_only).lower(),
-              })
-              url=BASE+'?'+q
-              req=urllib.request.Request(url,headers={
-                  'User-Agent':'HELIOGUARD-ARABIA/1.0 (+GitHub Actions CCMC gateway)',
-                  'Accept':'application/json'
-              })
-              with urllib.request.urlopen(req,timeout=60) as r:
-                  events=json.load(r)
-                  if not isinstance(events,list):
-                      raise RuntimeError(f'Unexpected CCMC payload: {type(events).__name__}')
-              payload={
-                  'schema':'HELIOGUARD_CCMC_GATEWAY_V1',
-                  'fetchedAt':now.isoformat().replace('+00:00','Z'),
-                  'source':BASE,
-                  'query':{
-                      'CMEtimeStart':start,
-                      'CMEtimeEnd':end,
-                      'skipNoArrivalObservedCMEs':skip_no_arrival,
-                      'closeOutCMEsOnly':closed_only,
-                  },
-                  'events':events,
-              }
-              Path(out).write_text(json.dumps(payload,ensure_ascii=False,separators=(',',':')),encoding='utf-8')
-              print(out,'events=',len(events))
-
-          fetch(45,False,False,'data/ccmc-scoreboard-recent.json')
-          fetch(90,True,False,'data/ccmc-scoreboard-90d.json')
-          PY
-
-      - name: Validate cache payloads
-        shell: bash
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          for f in ['data/ccmc-scoreboard-recent.json','data/ccmc-scoreboard-90d.json']:
-              p=json.loads(Path(f).read_text(encoding='utf-8'))
-              assert p.get('schema')=='HELIOGUARD_CCMC_GATEWAY_V1'
-              assert isinstance(p.get('events'),list)
-              assert p.get('fetchedAt')
-              assert p.get('source','').startswith('https://kauai.ccmc.gsfc.nasa.gov/')
-              print(f,'OK',len(p['events']))
-          PY
+          python .github/scripts/refresh_ccmc_cache.py
 
       - name: Commit refreshed gateway data
         shell: bash
