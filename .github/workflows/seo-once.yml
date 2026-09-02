@@ -1,4 +1,4 @@
-name: Inspect About Dialog
+name: Add HELIOGUARD Scientific Guide
 
 on:
   push:
@@ -7,32 +7,221 @@ on:
       - '.github/workflows/seo-once.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  inspect:
+  guide:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Inspect About-related snippets
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: RED - guide contract is not yet satisfied
+        id: red
+        continue-on-error: true
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
           s = Path('index.html').read_text(encoding='utf-8')
-          needles = ['حول البرنامج','حول','about','About','modal','openAbout','showAbout']
-          for needle in needles:
-              print('\n===== NEEDLE:', needle, '=====')
-              start = 0
-              count = 0
-              while True:
-                  i = s.find(needle, start)
-                  if i < 0: break
-                  count += 1
-                  a = max(0, i-1200); b = min(len(s), i+2400)
-                  print(f'--- occurrence {count} at {i} ---')
-                  print(s[a:b])
-                  start = i + len(needle)
-                  if count >= 12: break
-              print('COUNT', count)
+          required = [
+              'docs/HELIOGUARD_ARABIA_Scientific_Guide_AR_EN.pdf',
+              'الدليل العلمي والتشغيلي الكامل',
+              'Complete Scientific & Operational Guide',
+          ]
+          missing = [x for x in required if x not in s]
+          pdf = Path('docs/HELIOGUARD_ARABIA_Scientific_Guide_AR_EN.pdf')
+          if missing or not pdf.exists():
+              print('Expected RED: guide/link requirements are absent before implementation.')
+              print('Missing markers:', missing)
+              print('PDF exists:', pdf.exists())
+              raise SystemExit(1)
+          raise SystemExit('RED test unexpectedly passed; refusing duplicate implementation.')
           PY
+
+      - name: Confirm RED failed for the intended reason
+        if: steps.red.outcome != 'failure'
+        run: |
+          echo 'RED test did not fail as expected.'
+          exit 1
+
+      - name: Create full bilingual scientific guide source
+        shell: bash
+        run: |
+          mkdir -p docs
+          cat > docs/HELIOGUARD_ARABIA_Scientific_Guide_AR_EN.html <<'HTML'
+          <!doctype html>
+          <html lang="ar" dir="rtl">
+          <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <title>HELIOGUARD ARABIA - الدليل العلمي والتشغيلي الكامل</title>
+          <style>
+          @page{size:A4;margin:14mm 14mm 16mm}
+          *{box-sizing:border-box} body{font-family:"Noto Naskh Arabic","Noto Sans Arabic",Arial,sans-serif;color:#142432;line-height:1.58;margin:0;background:#fff;font-size:10.7pt}
+          .cover{min-height:260mm;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;page-break-after:always}
+          .logo{width:92px;height:92px;margin-bottom:16px}.brand{font-family:Arial,sans-serif;font-size:30pt;font-weight:800;color:#0b5f8a;letter-spacing:.6px}.arabic-title{font-size:26pt;font-weight:800;margin:8px 0;color:#0a1724}.subtitle{font-size:15pt;color:#0c8fbf;font-weight:700}.credit{margin-top:32px;border-top:1px solid #cbdbe4;padding-top:16px;width:80%;font-size:11pt}.url{direction:ltr;color:#0c8fbf;font-family:Arial,sans-serif;margin-top:15px}
+          .band{background:#0a1724;color:#fff;padding:11px 14px;margin:0 0 14px;border-radius:5px;text-align:center;font-size:16pt;font-weight:800;page-break-after:avoid}.band small{display:block;color:#bdd6e4;font-family:Arial,sans-serif;font-size:9pt;margin-top:3px}
+          h2{color:#0b5f8a;font-size:16pt;margin:17px 0 6px;page-break-after:avoid} h3{color:#0c8fbf;font-size:12.5pt;margin:13px 0 5px;page-break-after:avoid} p{margin:4px 0 8px}.en{direction:ltr;text-align:left;font-family:Arial,"DejaVu Sans",sans-serif;font-size:9.7pt;line-height:1.48}.en h2,.en h3{text-align:left}.section{page-break-inside:auto}.page{page-break-before:always}.note{border-right:4px solid #0c8fbf;background:#eef8fb;padding:10px 12px;margin:11px 0;border-radius:5px}.warn{border-right-color:#a93444;background:#fff0f2}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:9px 0}.card{border:1px solid #cbdce5;border-radius:7px;padding:10px;background:#fbfdfe;page-break-inside:avoid}.card h3{margin-top:0} ul{margin:5px 0 8px;padding-right:22px}.en ul{padding-left:22px;padding-right:0} li{margin:3px 0}
+          table{width:100%;border-collapse:collapse;margin:9px 0 14px;font-size:8.8pt;page-break-inside:auto} th{background:#0b5f8a;color:#fff;padding:7px;border:1px solid #b9cbd5} td{padding:7px;border:1px solid #c8d6de;vertical-align:top} tr{page-break-inside:avoid}.en table{font-size:8.2pt}.tag{display:inline-block;border:1px solid #b7d4e1;background:#eff8fb;border-radius:999px;padding:3px 7px;margin:2px;font-size:8.4pt}.footer-credit{text-align:center;margin-top:24px;padding:14px;border-top:2px solid #0b5f8a}.ltr{direction:ltr;text-align:left;font-family:Arial,sans-serif}.toc{columns:2;column-gap:30px}.toc div{break-inside:avoid;margin:5px 0}.mono{font-family:monospace;direction:ltr;text-align:left}
+          </style>
+          </head>
+          <body>
+          <section class="cover">
+            <img class="logo" src="../assets/helioguard-mark.svg" alt="HELIOGUARD ARABIA">
+            <div class="brand">HELIOGUARD ARABIA</div>
+            <div class="arabic-title">الدرع الشمسي العربي</div>
+            <div class="subtitle">الدليل العلمي والتشغيلي الكامل</div>
+            <div class="subtitle en" style="text-align:center">Complete Scientific & Operational Guide</div>
+            <div class="credit"><b>الفكرة العلمية والإعداد والتطوير البرمجي</b><br><strong style="font-size:17pt">الفيزيائي عمر الباز</strong><br>رئيس مبرمجين أقدم - عضو الاتحاد العربي لعلوم الفضاء والفلك<br><br><span class="en" style="display:block;text-align:center">Scientific concept, preparation and software development: <b>Physicist Omar Al-Baz</b><br>Senior Chief Programmer - Member of the Arab Union for Astronomy and Space Sciences</span></div>
+            <div class="url">https://mralehsas.github.io/HELIOGUARD-ARABIA/</div>
+            <div style="margin-top:12px;color:#607687">Guide edition: 2 September 2026</div>
+          </section>
+
+          <div class="band">مقدمة الدليل<small>Guide Introduction</small></div>
+          <h2>1. ما هو الدرع الشمسي العربي؟</h2>
+          <p>HELIOGUARD ARABIA منصة عربية متخصصة في مراقبة الطقس الفضائي، تجمع بيانات الرصد الرسمية الخاصة بالشمس والرياح الشمسية والمجال المغناطيسي بين الكواكب والنشاط الجيومغناطيسي، ثم تعرضها ضمن لوحة واحدة تربط الحدث الشمسي بما يحدث في الفضاء بين الشمس والأرض وما قد يظهر لاحقًا من مؤشرات وتأثيرات في البيئة القريبة من الأرض.</p>
+          <p>المنصة لا تستبدل مراكز الإنذار الرسمية. وظيفتها الجمع والتفسير والتوثيق والتحليل العلمي، مع تمييز واضح بين البيانات المنشورة رسميًا وبين الحسابات المحلية أو التقديرات الإرشادية التي ينفذها البرنامج.</p>
+          <h3>2. الأهداف الأساسية</h3>
+          <ul><li>عرض حالة الطقس الفضائي بطريقة موحدة بدل متابعة مصادر متفرقة.</li><li>ربط التوهج الشمسي والانبعاث الكتلي الإكليلي والعاصفة الجيومغناطيسية ضمن ملف حادثة واحد عندما تدعم البيانات ذلك.</li><li>مقارنة التوقعات الرسمية مع النماذج التحليلية المحلية وإظهار عدم اليقين.</li><li>تقديم سياق عربي ومحلي مفهوم مع الحفاظ على الحدود العلمية والتشغيلية.</li><li>توفير الحفظ والتقارير وJSON وإعادة بناء الأحداث التاريخية للتحقق والدراسة.</li></ul>
+          <div class="en"><h2>1. What is HELIOGUARD ARABIA?</h2><p>HELIOGUARD ARABIA is an Arab space-weather monitoring platform that combines official observations of the Sun, solar wind, interplanetary magnetic field, and geomagnetic activity in one analytical dashboard. It connects solar events to their Sun-Earth propagation context and to terrestrial indicators that may follow.</p><p>It does not replace accredited operational warning centers. Its role is scientific aggregation, interpretation, documentation, and analysis, with a strict distinction between official products and local analytical or advisory estimates.</p><h3>2. Core objectives</h3><ul><li>Unify space-weather monitoring across multiple official sources.</li><li>Build event dossiers linking FLR, CME, arrival information, and geomagnetic response when supported by evidence.</li><li>Compare official forecasts with analytical models and expose uncertainty.</li><li>Translate global indices into useful Arab-region context without overstating operational meaning.</li><li>Support documentation, archives, HTML/JSON export, and historical validation.</li></ul></div>
+
+          <div class="band page">كيف تعمل المنصة؟<small>How the Platform Works</small></div>
+          <h2>3. مسار البيانات من المصدر إلى الشاشة</h2>
+          <p>عند بدء الاتصال الحي تفحص المنصة الخدمات المتاحة وتطلب البيانات من المسارات الرسمية أو المسارات البديلة المهيأة. تُطبّع البيانات إلى بنية موحدة، ثم تُحدّث بطاقات المؤشرات والرسوم وسجل الأحداث ومحرك التأثير. إذا تعذر مصدر ما، تُعرض حالة الخدمة بوضوح ولا تُصنع قراءة بديلة وكأنها رصد حقيقي.</p>
+          <table><tr><th>المرحلة</th><th>الوظيفة</th></tr><tr><td>1 - الرصد والحوادث</td><td>استلام قياسات الرياح الشمسية والمجال والتوهجات والحوادث والصور والتنبيهات.</td></tr><tr><td>2 - توحيد البيانات</td><td>تحويل اختلاف صيغ الخدمات إلى بنية داخلية قابلة للمقارنة والتوقيت.</td></tr><tr><td>3 - الترابط والتحليل</td><td>فحص روابط FLR-CME-GST، أزمنة الوصول، النماذج، والمؤشرات الأرضية.</td></tr><tr><td>4 - العرض والتوثيق</td><td>تحديث اللوحة والرسوم وملف الحادثة والتقارير والأرشيف.</td></tr></table>
+          <h3>4. مركز الاتصالات والتخزين المؤقت</h3><p>مركز الاتصالات يسمح بفحص حالة الخدمات واحدةً واحدة، ويعرض نجاح الاتصال أو فشله وسجلًا مختصرًا للاستجابة. وعندما تُستخدم نسخة مخزنة يجب أن تبقى مميزة عن البيانات الحية حتى لا تختلط القراءة القديمة بالرصد اللحظي.</p>
+          <div class="en"><h2>3. Data path from source to screen</h2><p>When live connection starts, the platform checks available services and requests official or configured fallback routes. Data are normalized into a common internal structure and routed to metric cards, charts, event records, the impact engine, and archives. An unavailable source is shown as unavailable rather than replaced with fabricated live data.</p><h3>4. Connection Center and cache</h3><p>The Connection Center exposes individual service health and scan logs. Cached data, when used, are labeled as stored rather than live observations.</p></div>
+
+          <h2>5. مصادر البيانات العلمية</h2>
+          <table><tr><th>المصدر</th><th>البيانات</th><th>الاستخدام</th></tr><tr><td>NASA DONKI</td><td>FLR, CME, GST وروابط الحوادث.</td><td>المصدر المفضل للروابط الصريحة بين الحوادث.</td></tr><tr><td>NASA CCMC / WSA-ENLIL</td><td>نماذج انتشار الرياح الشمسية وبعض توقعات وصول CME.</td><td>تُفضل أزمنة الوصول المرتبطة بنموذج رسمي على التقديرات المحلية.</td></tr><tr><td>NASA EPIC</td><td>صور ورصد الأرض من الفضاء العميق.</td><td>سياق بصري للأرض، وليس خريطة تأثير جيومغناطيسي بحد ذاته.</td></tr><tr><td>NOAA SWPC</td><td>الرياح الشمسية، Kp، التنبيهات، R/S/G، ومنتجات الطقس الفضائي.</td><td>مرجع تشغيلي رئيسي للقياسات والتنبيهات.</td></tr><tr><td>GOES / SUVI</td><td>صور شمسية EUV وقياسات أشعة سينية وجسيمات.</td><td>الصورة في الواجهة رصدية حقيقية عند نجاح الاتصال.</td></tr><tr><td>OVATION</td><td>احتمال وشدة البيضاوي الشفقي.</td><td>لا يضمن الرؤية البصرية بسبب الغيوم والظلام والتلوث الضوئي.</td></tr><tr><td>Kyoto Dst</td><td>مؤشر Dst لتطور الاضطراب المغناطيسي.</td><td>يُقرأ مع Kp ومقاييس أخرى لفهم العاصفة.</td></tr></table>
+          <div class="en"><h2>5. Scientific data sources</h2><p><span class="tag">NASA DONKI</span><span class="tag">NASA CCMC / WSA-ENLIL</span><span class="tag">NASA EPIC</span><span class="tag">NOAA SWPC</span><span class="tag">GOES / SUVI</span><span class="tag">OVATION</span><span class="tag">Kyoto Dst</span></p><p>Explicit DONKI links are preferred for event association. WSA-ENLIL-associated arrival information is preferred over local estimates when available. NOAA products provide operational scales and measurements; EPIC and SUVI provide observational imagery; OVATION supplies auroral context; Dst complements Kp for geomagnetic-storm development.</p></div>
+
+          <div class="band page">المؤشرات الرئيسية<small>Primary Metrics</small></div>
+          <h2>6. قراءة البطاقات العلوية</h2>
+          <table><tr><th>المؤشر</th><th>المعنى الفيزيائي</th><th>طريقة القراءة</th></tr><tr><td>سرعة الرياح الشمسية</td><td>سرعة البلازما القادمة من الشمس قرب L1.</td><td>لا تُفسر وحدها؛ تُقرأ مع Bz وBt والسياق البلازمي.</td></tr><tr><td>Bz</td><td>المركبة شمال-جنوب للمجال المغناطيسي بين الكواكب في GSM.</td><td>القيم السالبة الجنوبية المستمرة قد تسمح باقتران مغناطيسي أكثر فاعلية. الاستمرار مهم أكثر من نبضة قصيرة.</td></tr><tr><td>Bt</td><td>المقدار الكلي للمجال المغناطيسي بين الكواكب.</td><td>ارتفاع Bt مع Bz جنوبي وسرعة مناسبة يزيد أهمية الحالة.</td></tr><tr><td>Kp</td><td>مؤشر كوكبي للنشاط الجيومغناطيسي من 0 إلى 9.</td><td>يُقرأ الحالي مع سجل 7 أيام والتوقع عندما يتوفر.</td></tr><tr><td>التوهج</td><td>أحدث توهج مرصود أو مسجل وتصنيف A/B/C/M/X.</td><td>قوة التوهج لا تثبت وجود CME موجه للأرض؛ افصل الإشعاع عن البلازما.</td></tr><tr><td>المؤشر المحلي للعراق</td><td>تجميع إرشادي لسياق التأثير على العراق.</td><td>ليس تحذيرًا تشغيليًا ولا حساب GIC مباشرًا.</td></tr></table>
+          <div class="en"><h2>6. Reading the top metrics</h2><table><tr><th>Metric</th><th>Meaning</th><th>Interpretation</th></tr><tr><td>Solar-wind speed</td><td>Bulk plasma speed near the Sun-Earth L1 region.</td><td>Interpret with Bz, total field, and plasma context.</td></tr><tr><td>Bz</td><td>North-south IMF component in GSM coordinates.</td><td>Sustained negative / southward Bz can enable stronger magnetospheric coupling; duration matters.</td></tr><tr><td>Bt</td><td>Total IMF magnitude.</td><td>Higher Bt with southward Bz and elevated speed can strengthen the significance of the solar-wind state.</td></tr><tr><td>Kp</td><td>Planetary geomagnetic index, 0-9.</td><td>Read current value together with history and forecast.</td></tr><tr><td>Flare</td><td>Latest flare / X-ray event class.</td><td>Flare strength alone does not prove an Earth-directed CME.</td></tr><tr><td>Iraq indicator</td><td>Advisory regional synthesis.</td><td>Not an operational warning or direct GIC calculation.</td></tr></table></div>
+
+          <div class="band page">الحوادث الشمسية وملف الترابط<small>Solar Events and Correlation Dossier</small></div>
+          <h2>7. السلسلة FLR - CME - GST</h2><p>يقسم البرنامج السلسلة الفيزيائية إلى مراحل قابلة للتتبع: توهج شمسي FLR، ثم CME إن وُجد، ثم احتمال الوصول إلى البيئة القريبة من الأرض، ثم الاستجابة الجيومغناطيسية التي قد تظهر في GST أو Kp أو Dst أو مقاييس NOAA. وجود مرحلة لا يثبت تلقائيًا المرحلة التالية.</p>
+          <h3>8. قواعد الترابط والثقة</h3><ul><li>الرابطة الصريحة داخل DONKI هي الدليل المفضل.</li><li>عند غياب الرابط الصريح يمكن استخدام التقارب الزمني والهندسة المخروطية كاستدلال احتمالي غير سببي.</li><li>الاستدلال غير الصريح يجب أن يظهر مع مستوى ثقة وسبب واضح.</li><li>ملف الحادثة يجمع التوقيت والسرعة والاتجاه والوصول والتوقع والعاصفة والمؤشرات المرتبطة في شاشة واحدة.</li></ul>
+          <h3>9. توقع وصول CME</h3><p>يُفضل وقت الوصول المرتبط بتشغيل WSA-ENLIL أو منتج رسمي. عند غيابه قد يعرض البرنامج تقديرًا باليستيًا ثابت السرعة ونموذج DBM داخليًا. هذان النموذجان أدوات تحليلية وليسا بديلًا عن النماذج التشغيلية أو قياسات L1 بعد وصول الاضطراب.</p><div class="note">اختلاف أزمنة الوصول بين ENLIL وBallistic وDBM ليس خطأً بالضرورة؛ إنه يعكس اختلاف الفرضيات وعدم اليقين. انتشار النماذج جزء من المعلومة العلمية.</div>
+          <div class="en"><h2>7-9. FLR-CME-GST chain and arrival modeling</h2><p>The platform treats flare, CME, near-Earth arrival, and geomagnetic response as separate stages. Explicit DONKI associations are preferred. Temporal / cone-geometry links are probabilistic when explicit links are absent and must not be promoted to confirmed causality.</p><p>WSA-ENLIL-associated arrival information is preferred when available. Constant-speed Ballistic and internal DBM estimates are analytical tools, not replacements for operational models or L1 observations. Model spread is a representation of uncertainty.</p></div>
+
+          <div class="band page">التأثير على الأرض والمنطقة العربية<small>Earth and Regional Impact Context</small></div>
+          <h2>10. مقاييس NOAA R وS وG</h2><p>تعرض المنصة المقاييس الثلاثة كظواهر مختلفة: R لاضطرابات الراديو المرتبطة بزيادة الأشعة السينية، S لعواصف الإشعاع الشمسي والجسيمات عالية الطاقة، وG للعواصف الجيومغناطيسية. لا ينبغي دمجها في رقم واحد من دون فهم سبب كل مقياس ومجاله الزمني.</p>
+          <h3>11. Kp وDst والأشعة السينية والبروتونات</h3><p>Kp يعطي وصفًا كوكبيًا للنشاط الجيومغناطيسي، بينما Dst يساعد على تتبع تطور الحلقة التيارية. تجمع المنصة هذه المؤشرات مع توقع Kp وقياسات الأشعة السينية والبروتونات لتكوين سياق أوسع، لا لاستبدال أي منتج رسمي.</p>
+          <h3>12. القطاعات</h3><div class="grid"><div class="card"><h3>شبكات الكهرباء</h3><p>سياق متابعة فقط. تقييم GIC الحقيقي يحتاج موصلية الأرض وهندسة الشبكة وبيانات الخطوط والمحولات وقياسات مغناطيسية محلية.</p></div><div class="card"><h3>GNSS والملاحة</h3><p>اضطراب الأيونوسفير قد يرفع أخطاء الحلول وخصوصًا في التطبيقات الحساسة أو أحادية التردد.</p></div><div class="card"><h3>اتصالات HF</h3><p>التوهجات القوية قد تزيد الامتصاص الأيونوسفيري وتسبب تدهورًا أو انقطاعًا يعتمد على الشدة والتردد والمسار.</p></div><div class="card"><h3>الأقمار الصناعية</h3><p>تُراقب سياقات الجسيمات والإشعاع والشحن والبيئة المدارية؛ الخطر الفعلي يعتمد على المركبة والمهمة.</p></div></div>
+          <h3>13. المؤشر المحلي للعراق</h3><p>المؤشر المحلي طبقة تفسيرية تحول مجموعة من المقاييس العالمية إلى وضع متابعة مبسط. لا يدعي قياس إجهاد مباشر في شبكة محددة، ولا يمثل إنذارًا تشغيليًا. القرار التشغيلي يبقى للجهات المختصة وبالاعتماد على بيانات البنية المحلية.</p>
+          <div class="en"><h2>10-13. NOAA scales and regional impact</h2><p>R, S, and G are kept conceptually separate: radio blackouts, solar-radiation storms, and geomagnetic storms. Kp and Dst add complementary geomagnetic context; X-ray, proton, and forecast products extend the physical picture.</p><p>Power-grid cards are advisory only; real GIC assessment requires ground conductivity, grid geometry, equipment data, and local magnetics. GNSS, HF, and satellite cards provide sector context, not deterministic failure predictions. The Iraq indicator is an interpretive monitoring posture, not an operational warning.</p></div>
+
+          <div class="band page">الصور والتمثيل المرئي<small>Visual Observations and Schematics</small></div>
+          <h2>14. صورة الشمس الحقيقية</h2><p>تستخدم الواجهة صورة رصدية للشمس من GOES/SUVI عندما ينجح الاتصال بالمصدر. الهدف تقديم مرجع بصري للحالة الشمسية مع فصل الصورة الرصدية عن الرسومات التوضيحية.</p>
+          <h3>15. ممر الشمس - الأرض</h3><p>الممر رسم توضيحي وليس محاكاة هندسية للمسافات أو الأحجام. وظيفته ربط الأرقام بالقصة الفيزيائية العامة من الشمس عبر الوسط بين الكوكبي إلى الأرض. القيم العلمية هي الأرقام والمنتجات الواردة من المصادر، لا أبعاد الرسم.</p>
+          <h3>16. الأرض والشفق</h3><p>يمكن استخدام NASA EPIC لسياق بصري حقيقي للأرض، بينما يعطي OVATION احتمالًا وشدة للبيضاوي الشفقي. الاحتمال المرتفع لا يضمن الرؤية البصرية بسبب الغيوم والظلام والشفافية والتلوث الضوئي.</p>
+          <div class="en"><h2>14-16. Real imagery and schematics</h2><p>GOES/SUVI provides observational solar imagery when available. The Sun-Earth corridor is schematic and deliberately not to scale. NASA EPIC supplies Earth imagery, while OVATION supplies auroral probability / intensity context. Auroral probability is not a naked-eye visibility guarantee.</p></div>
+
+          <div class="band page">التاريخ والتحقق والنماذج<small>History, Validation, and Models</small></div>
+          <h2>17. إعادة بناء الأحداث التاريخية</h2><p>توفر المنصة أدوات للبحث في فترة زمنية سابقة وإعادة بناء سلسلة FLR-CME-GST قدر الإمكان من السجلات المتاحة. الهدف فهم ما حدث واختبار العلاقات ومقارنة التوقعات أو النماذج مع النتائج اللاحقة.</p>
+          <h3>18. مختبر التوقع والتحقق</h3><p>يقارن المختبر أزمنة الوصول وعدم اليقين. التحقق الجيد يحتفظ أيضًا بالحالات التي لم يصل فيها حدث متوقع أو تعذر التحقق منها، لأنها جزء من جودة النموذج وليست بيانات يجب حذفها.</p>
+          <h3>19. مصادر عدم اليقين</h3><p>تشمل سرعة CME واتجاهه وعرضه وتطوره أثناء الانتشار، تفاعل المقذوفة مع الرياح الشمسية، اختلاف تعريف وقت الوصول، ونقص بعض روابط الحوادث. لذلك يحافظ البرنامج على الفروق بين مرصود ومتوقع ومستدل وغير متاح.</p>
+          <div class="en"><h2>17-19. Historical reconstruction, validation, and uncertainty</h2><p>Historical tools reconstruct the FLR-CME-GST chain from available records and compare model / forecast results with later observations. Validation retains non-arrivals and unverifiable cases. Key uncertainties include CME speed, direction, width, propagation evolution, ambient solar-wind interaction, arrival definition, and incomplete associations.</p></div>
+
+          <div class="band page">طريقة استخدام البرنامج<small>Step-by-Step Operation</small></div>
+          <h2>20. التشغيل خطوة بخطوة</h2>
+          <table><tr><th>#</th><th>الإجراء</th><th>ما الذي يحدث؟</th></tr><tr><td>1</td><td>فتح المنصة</td><td>تظهر الواجهة بحالة غير متصلة حتى يبدأ الاتصال الحي.</td></tr><tr><td>2</td><td>اتصال حي</td><td>يبدأ فحص المصادر وطلب البيانات المتاحة.</td></tr><tr><td>3</td><td>قراءة المؤشرات</td><td>ابدأ بالسرعة وBz وBt وKp والتوهج ثم السياق المحلي.</td></tr><tr><td>4</td><td>فحص الرسوم والتنبيهات</td><td>راجع Kp، R/S/G، Dst، التوقع، والتنبيهات الرسمية.</td></tr><tr><td>5</td><td>فتح ملف الحادثة</td><td>راجع FLR/CME والاتجاه والسرعة والوصول والعاصفة والثقة.</td></tr><tr><td>6</td><td>مقارنة النماذج</td><td>افصل بين ENLIL الرسمي وBallistic/DBM المحليين.</td></tr><tr><td>7</td><td>التاريخ والتحقق</td><td>اختبر النماذج على أحداث سابقة واحتفظ بحالات عدم الوصول.</td></tr><tr><td>8</td><td>التوثيق</td><td>احفظ لقطة أو HTML أو JSON ولا تعامل التقديرات كإنذار رسمي.</td></tr></table>
+          <h3>21. مفتاح NASA ومركز الاتصالات</h3><p>يجب التعامل مع مفتاح NASA الشخصي كمعلومة سرية. تصميم البرنامج يبقيه محليًا قدر الإمكان ويرسله فقط إلى المسار الذي يحتاجه، بينما مسار CCMC المباشر لا يحتاج مفتاح NASA Open API.</p>
+          <div class="en"><h2>20-21. Operation</h2><ol><li>Open the GitHub Pages site.</li><li>Press Connect Live.</li><li>Read solar-wind speed, Bz, Bt, Kp, and flare data.</li><li>Review alerts, R/S/G, Dst, history, and forecasts.</li><li>Open the event dossier for linked FLR/CME/storm details.</li><li>Separate official WSA-ENLIL information from Ballistic / DBM estimates.</li><li>Use historical reconstruction for validation.</li><li>Export snapshots, HTML, or JSON as needed.</li></ol><p>A personal NASA key should be treated as secret and sent only to endpoints that require it.</p></div>
+
+          <div class="band page">الحفظ والتقارير والاستخدام البحثي<small>Archiving, Reports, and Research Use</small></div>
+          <h2>22. الحفظ والتصدير</h2><ul><li><b>حفظ لقطة:</b> الاحتفاظ بحالة حالية داخل سجل البرنامج.</li><li><b>تقرير HTML:</b> توثيق حالة في ملف قابل للفتح والمشاركة.</li><li><b>JSON:</b> تصدير البيانات المنظمة للتحليل البرمجي.</li><li><b>ملف الحادثة:</b> تجميع معلومات حادثة محددة مع الترابط والنماذج والمؤشرات.</li></ul>
+          <h3>23. الاستخدام في المحاضرات والبحث</h3><p>عند الاستشهاد بنتيجة يجب ذكر المصدر الأصلي، وتحديد ما إذا كانت القيمة رسمية أو مرصودة أو متوقعة أو مستدلة أو محسوبة محليًا، مع تسجيل الزمن والمنهج. هذا يمنع الخلط بين الرصد والتفسير ويجعل العمل قابلًا للمراجعة.</p>
+          <div class="en"><h2>22-23. Export and research use</h2><p>The platform supports snapshots, HTML reports, JSON export, and event dossiers. For lectures or research, cite the original data source and label each value as official, observed, forecast, inferred, or locally calculated. Record time and method so the result remains reproducible.</p></div>
+
+          <div class="band page">الحدود العلمية والتنبيه<small>Scientific Limitations and Disclaimer</small></div>
+          <h2>24. ما الذي لا يدعيه البرنامج؟</h2><ul><li>لا يتنبأ يقينيًا بوصول كل CME أو شدته عند الأرض.</li><li>لا يعتبر أي تقارب زمني دليلًا سببيًا مؤكدًا.</li><li>لا يحسب GIC الحقيقي في خط أو محول محدد من دون نموذج الأرض والشبكة والقياسات المحلية.</li><li>لا يضمن ظهور الشفق بصريًا حتى عند ارتفاع احتمال OVATION.</li><li>لا يحل محل نشرات NOAA أو NASA أو السلطات الوطنية أو المراكز المعتمدة.</li></ul>
+          <div class="note warn"><b>تنبيه علمي مهم:</b> تعرض HELIOGUARD ARABIA بيانات رسمية إلى جانب تحليلات وتقديرات حسابية وإرشادية. يجب التحقق من نوع كل قيمة ومصدرها قبل استخدامها في قرار تشغيلي.</div>
+          <div class="en"><h2>24. Scientific limitations</h2><ul><li>No certainty is claimed for every CME arrival or final intensity.</li><li>Temporal proximity is not causal proof.</li><li>Real line- or transformer-specific GIC requires ground conductivity, grid geometry, equipment data, and local magnetic observations.</li><li>High OVATION probability does not guarantee naked-eye aurora.</li><li>The platform does not replace NOAA/NASA operational bulletins or competent authorities.</li></ul><div class="note warn"><b>Scientific disclaimer:</b> HELIOGUARD ARABIA presents official products together with analytical and advisory calculations. Verify the type and provenance of each value before operational use.</div></div>
+
+          <div class="band page">مرجع سريع والاعتماد<small>Quick Reference and Credits</small></div>
+          <h2>25. قاموس مختصر</h2><table><tr><th>الرمز</th><th>المعنى</th></tr><tr><td>FLR</td><td>Solar Flare - توهج شمسي</td></tr><tr><td>CME</td><td>Coronal Mass Ejection - انبعاث كتلي إكليلي</td></tr><tr><td>GST</td><td>Geomagnetic Storm - عاصفة جيومغناطيسية</td></tr><tr><td>IMF / Bz / Bt</td><td>المجال المغناطيسي بين الكواكب، مركبته شمال-جنوب، وشدته الكلية</td></tr><tr><td>Kp / Dst</td><td>مؤشران مكملان لوصف النشاط والاضطراب الجيومغناطيسي</td></tr><tr><td>R/S/G</td><td>مقاييس NOAA لانقطاع الراديو والعواصف الإشعاعية والعواصف الجيومغناطيسية</td></tr><tr><td>L1</td><td>منطقة لاغرانج الأولى بين الشمس والأرض المستخدمة في مراقبة الرياح الشمسية قبل وصولها</td></tr><tr><td>WSA-ENLIL</td><td>نموذج انتشار للرياح الشمسية وCME</td></tr><tr><td>DBM</td><td>Drag-Based Model - نموذج تحليلي مبسط لانتشار CME</td></tr><tr><td>GIC</td><td>Geomagnetically Induced Currents - تيارات مستحثة جيومغناطيسيًا</td></tr></table>
+          <div class="footer-credit"><h2 style="margin-top:0">الاعتماد</h2><p><b>الفكرة العلمية والإعداد والتطوير البرمجي: الفيزيائي عمر الباز</b><br>رئيس مبرمجين أقدم - عضو الاتحاد العربي لعلوم الفضاء والفلك</p><div class="en" style="text-align:center"><b>Scientific concept, preparation and software development: Physicist Omar Al-Baz</b><br>Senior Chief Programmer - Member of the Arab Union for Astronomy and Space Sciences</div><p class="url">https://mralehsas.github.io/HELIOGUARD-ARABIA/</p><p style="color:#0b5f8a;font-weight:700">HELIOGUARD ARABIA - نحو منصة عربية موثوقة لفهم الطقس الفضائي</p></div>
+          </body></html>
+          HTML
+
+      - name: Generate PDF with headless Chrome
+        shell: bash
+        run: |
+          CHROME="$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)"
+          if [ -z "$CHROME" ]; then
+            echo 'Chrome/Chromium not found on runner.'
+            exit 1
+          fi
+          echo "Using browser: $CHROME"
+          "$CHROME" --headless=new --no-sandbox --disable-gpu --allow-file-access-from-files --no-pdf-header-footer \
+            --print-to-pdf="$PWD/docs/HELIOGUARD_ARABIA_Scientific_Guide_AR_EN.pdf" \
+            "file://$PWD/docs/HELIOGUARD_ARABIA_Scientific_Guide_AR_EN.html"
+          test -s docs/HELIOGUARD_ARABIA_Scientific_Guide_AR_EN.pdf
+
+      - name: Patch About dialog with full explanation and PDF link
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          ar_anchor = '<article class="about-card"><h3>المصادر العلمية</h3><div class="about-source-list"><b>NASA DONKI</b><b>NASA EPIC</b><b>NASA CCMC</b><b>NOAA SWPC</b><b>GOES</b><b>OVATION</b><b>Kyoto Dst</b></div></article>'
+          en_anchor = '<article class="about-card"><h3>Scientific Data Sources</h3><div class="about-source-list"><b>NASA DONKI</b><b>NASA EPIC</b><b>NASA CCMC</b><b>NOAA SWPC</b><b>GOES</b><b>OVATION</b><b>Kyoto Dst</b></div></article>'
+          if s.count(ar_anchor) != 1 or s.count(en_anchor) != 1:
+              raise SystemExit(f'Unsafe patch: anchors ar={s.count(ar_anchor)} en={s.count(en_anchor)}')
+          ar_extra = '''
+              <article class="about-card"><h3>كيف تعمل المنصة؟</h3><p>عند الضغط على اتصال حي تفحص HELIOGUARD ARABIA المصادر المتاحة، توحّد البيانات وتربط القياسات بالحوادث ثم تحدّث المؤشرات والرسوم والتنبيهات. تبقى حالة كل مصدر واضحة، وتُميز البيانات المخزنة عن البيانات الحية.</p></article>
+              <article class="about-card"><h3>كيف أقرأ المؤشرات؟</h3><p>تُقرأ سرعة الرياح الشمسية مع Bz وBt، ثم Kp وDst ومقاييس NOAA R/S/G. Bz الجنوبي المستمر مع مجال قوي ورياح أسرع قد يزيد فاعلية الاقتران المغناطيسي، بينما قوة التوهج وحدها لا تثبت وجود CME موجه للأرض.</p></article>
+              <article class="about-card"><h3>ملف الحادثة والنماذج</h3><p>يجمع ملف الحادثة FLR وCME وGST والتوقيت والسرعة والاتجاه والوصول والثقة. تُفضل روابط DONKI الصريحة وتوقعات WSA-ENLIL عند توفرها، بينما Ballistic وDBM أدوات تحليلية محلية مع عدم يقين معلن.</p></article>
+              <article class="about-card"><h3>التأثيرات والحدود العلمية</h3><p>يعرض البرنامج سياقًا لشبكات الكهرباء وGNSS وHF والأقمار الصناعية وللعراق، لكنه لا يحسب GIC الحقيقي في شبكة محددة ولا يستبدل التحذيرات التشغيلية الرسمية. تقييم GIC يحتاج موصلية الأرض وهندسة الشبكة وقياسات محلية.</p></article>
+              <article class="about-card about-credit"><h3>الدليل العلمي والتشغيلي الكامل</h3><p>يتضمن شرح مصادر البيانات، المؤشرات، الترابط FLR-CME-GST، توقع وصول CME، ENLIL وBallistic وDBM، مقاييس R/S/G وKp وDst، المؤشر المحلي للعراق، مركز الاتصالات، التاريخ والتحقق، التصدير، وحدود الاستخدام العلمي.</p><a class="btn primary" href="docs/HELIOGUARD_ARABIA_Scientific_Guide_AR_EN.pdf" target="_blank" rel="noopener" download style="display:inline-flex;margin-top:10px;text-decoration:none">📄 فتح / تحميل الدليل العلمي الكامل PDF</a></article>'''
+          en_extra = '''
+              <article class="about-card"><h3>How the Platform Works</h3><p>Connect Live checks available sources, normalizes their data, correlates measurements with events, and updates metrics, charts and alerts. Service state remains visible, and cached data are distinguished from live observations.</p></article>
+              <article class="about-card"><h3>How to Read the Metrics</h3><p>Solar-wind speed is interpreted with Bz and Bt, followed by Kp, Dst and NOAA R/S/G scales. Sustained southward Bz with a stronger field and faster wind can enhance magnetic coupling; flare strength alone does not prove an Earth-directed CME.</p></article>
+              <article class="about-card"><h3>Event Dossier and Models</h3><p>The dossier combines FLR, CME, GST, timing, speed, direction, arrival and confidence. Explicit DONKI links and WSA-ENLIL information are preferred when available; Ballistic and DBM are local analytical estimates with stated uncertainty.</p></article>
+              <article class="about-card"><h3>Impacts and Scientific Limits</h3><p>The platform provides context for power grids, GNSS, HF, satellites and Iraq, but it does not calculate real grid-specific GIC or replace official operational warnings. GIC assessment requires ground conductivity, grid geometry and local measurements.</p></article>
+              <article class="about-card about-credit"><h3>Complete Scientific &amp; Operational Guide</h3><p>The guide covers data sources, metrics, FLR-CME-GST correlation, CME arrival, ENLIL/Ballistic/DBM models, R/S/G, Kp and Dst, the Iraq indicator, Connection Center, history and validation, exports, and scientific limitations.</p><a class="btn primary" href="docs/HELIOGUARD_ARABIA_Scientific_Guide_AR_EN.pdf" target="_blank" rel="noopener" download style="display:inline-flex;margin-top:10px;text-decoration:none">📄 Open / Download Full Scientific Guide (PDF)</a></article>'''
+          s = s.replace(ar_anchor, ar_anchor + ar_extra, 1)
+          s = s.replace(en_anchor, en_anchor + en_extra, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: GREEN - verify guide, PDF, and About integration
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path('index.html').read_text(encoding='utf-8')
+          pdf = Path('docs/HELIOGUARD_ARABIA_Scientific_Guide_AR_EN.pdf')
+          html = Path('docs/HELIOGUARD_ARABIA_Scientific_Guide_AR_EN.html')
+          assert s.count('id="aboutModal"') == 1
+          assert s.count('docs/HELIOGUARD_ARABIA_Scientific_Guide_AR_EN.pdf') == 2
+          assert 'الدليل العلمي والتشغيلي الكامل' in s
+          assert 'Complete Scientific &amp; Operational Guide' in s
+          assert 'كيف تعمل المنصة؟' in s and 'How the Platform Works' in s
+          assert pdf.exists() and pdf.stat().st_size > 50000
+          assert pdf.read_bytes()[:5] == b'%PDF-'
+          assert html.exists() and html.stat().st_size > 12000
+          hs = html.read_text(encoding='utf-8')
+          for marker in ['NASA DONKI','WSA-ENLIL','Ballistic','DBM','المؤشر المحلي للعراق','Scientific limitations','Physicist Omar Al-Baz']:
+              assert marker in hs, marker
+          print('GREEN: full bilingual guide, valid PDF, and About links verified.')
+          print('PDF bytes:', pdf.stat().st_size)
+          PY
+          git diff --check
+
+      - name: Commit guide and About integration
+        shell: bash
+        run: |
+          git config user.name "HELIOGUARD Documentation Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html docs/HELIOGUARD_ARABIA_Scientific_Guide_AR_EN.html docs/HELIOGUARD_ARABIA_Scientific_Guide_AR_EN.pdf
+          git commit -m "Add full HELIOGUARD scientific guide and About PDF link"
+          git push
