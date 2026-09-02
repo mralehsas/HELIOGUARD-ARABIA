@@ -976,6 +976,8 @@ const CONFIG = Object.freeze({
     protons: "https://services.swpc.noaa.gov/json/goes/primary/integral-protons-6-hour.json",
     solarImage: "https://services.swpc.noaa.gov/images/animations/suvi/primary/195/latest.png",
     scoreboard: "https://kauai.ccmc.gsfc.nasa.gov/CMEscoreboard/WS/get/predictions",
+    scoreboardGatewayRecent: "data/ccmc-scoreboard-recent.json",
+    scoreboardGateway90: "data/ccmc-scoreboard-90d.json",
     epicNatural: "https://epic.gsfc.nasa.gov/api/natural",
     aurora: "https://services.swpc.noaa.gov/json/ovation_aurora_latest.json"
   }
@@ -1165,7 +1167,7 @@ function connectionServices(){
     {id:"scales",agency:"NOAA SWPC",name:"R / S / G & Forecast",role:"المقاييس التشغيلية وتوقع Kp لثلاثة أيام.",fresh:360,endpoints:[{label:"Scales",url:CONFIG.endpoints.scales,kind:"json"},{label:"Kp Forecast",url:CONFIG.endpoints.kpForecast,kind:"json"}],time:d=>Array.isArray(d)&&d.length?d.at(-1)?.time_tag:(d?.["0"]?.DateStamp&&d?.["0"]?.TimeStamp?`${d["0"].DateStamp}T${d["0"].TimeStamp}Z`:null),count:d=>Array.isArray(d)?d.length:Object.keys(d||{}).length,valid:d=>d&&typeof d==="object"},
     {id:"aurora",agency:"NOAA SWPC",name:"OVATION Aurora",role:"شبكة توقع احتمال الشفق القطبي.",fresh:180,endpoints:[{label:"OVATION",url:CONFIG.endpoints.aurora,kind:"json"}],time:d=>d?.["Forecast Time"]||d?.["Observation Time"],count:d=>Array.isArray(d?.coordinates)?d.coordinates.length:0,valid:d=>Array.isArray(d?.coordinates)},
     {id:"epic",agency:"NASA DSCOVR",name:"EPIC",role:"أحدث صورة رصدية كاملة لقرص الأرض.",fresh:4320,endpoints:[{label:"Natural",url:CONFIG.endpoints.epicNatural,kind:"json"}],time:d=>Array.isArray(d)&&d.length?d[0]?.date:null,count:d=>Array.isArray(d)?d.length:0,valid:d=>Array.isArray(d)&&d.length>0},
-    {id:"ccmc",agency:"NASA CCMC",name:"CME Scoreboard",role:"توقعات وصول CME متعددة النماذج والتحقق التاريخي.",fresh:null,endpoints:[{label:"Predictions",url:scoreboardUrl({CMEtimeStart:r30.start,CMEtimeEnd:r30.end,skipNoArrivalObservedCMEs:false,closeOutCMEsOnly:false}),kind:"json",timeout:30000}],time:d=>null,count:d=>Array.isArray(d)?d.length:(Array.isArray(d?.events)?d.events.length:0),valid:d=>Array.isArray(d)||Array.isArray(d?.events)||typeof d==="object"},
+    {id:"ccmc",agency:"NASA CCMC",name:"CME Scoreboard",role:"توقعات وصول CME متعددة النماذج والتحقق التاريخي.",fresh:180,endpoints:[{label:"HELIOGUARD CCMC Gateway",url:`${CONFIG.endpoints.scoreboardGatewayRecent}?v=${Date.now()}`,kind:"json",timeout:12000},{label:"NASA CCMC Direct",url:scoreboardUrl({CMEtimeStart:r30.start,CMEtimeEnd:r30.end,skipNoArrivalObservedCMEs:false,closeOutCMEsOnly:false}),kind:"json",timeout:30000}],time:d=>d?.fetchedAt||null,count:d=>Array.isArray(d)?d.length:(Array.isArray(d?.events)?d.events.length:0),valid:d=>Array.isArray(d)||Array.isArray(d?.events)||typeof d==="object"},
     {id:"suvi",agency:"NOAA GOES",name:"SUVI 195 Å",role:"الصورة الشمسية الرصدية المستخدمة في الواجهة.",fresh:null,endpoints:[{label:"Latest image",url:DEMO_MODE?"assets/demo-sun.svg":CONFIG.endpoints.solarImage,kind:"image",timeout:22000}],time:d=>null,count:d=>1,valid:d=>Boolean(d)}
   ];
 }
@@ -1513,6 +1515,31 @@ function normalizeScoreboardPayload(data){if(Array.isArray(data))return data;if(
 function activeForecastDossier(){return state.history.selected?.kind==="cme"?state.history.selected:state.incident?.kind==="cme"?state.incident:null}
 function forecastCmeId(d=activeForecastDossier()){return d?.cme?.activityID||d?.cme?.cmeID||d?.id||null}
 function scoreboardUrl(params){const u=new URL(CONFIG.endpoints.scoreboard);Object.entries(params).forEach(([k,v])=>v!==null&&v!==undefined&&v!==""&&u.searchParams.set(k,String(v)));return u.toString()}
+function filterGatewayScoreboard(events,params={}){
+  let out=Array.isArray(events)?events.slice():[];
+  if(params.CMEID)out=out.filter(e=>String(e?.cmeID||"")===String(params.CMEID));
+  if(params.CMEtimeStart&&params.CMEtimeEnd){const a=Date.parse(params.CMEtimeStart+"T00:00:00Z"),b=Date.parse(params.CMEtimeEnd+"T23:59:59Z");out=out.filter(e=>{const t=Date.parse(e?.observedTime||"");return Number.isFinite(t)&&t>=a&&t<=b})}
+  if(params.skipNoArrivalObservedCMEs===true||String(params.skipNoArrivalObservedCMEs)==="true")out=out.filter(e=>e?.noArrivalObserved!==true);
+  if(params.closeOutCMEsOnly===true||String(params.closeOutCMEsOnly)==="true")out=out.filter(e=>Boolean(e?.arrivalTime)||e?.noArrivalObserved===true);
+  return out
+}
+async function fetchScoreboardGatewayFile(url,params,timeout){const raw=await fetchJson(`${url}?v=${Date.now()}`,timeout);const events=normalizeScoreboardPayload(raw);return {raw,events:filterGatewayScoreboard(events,params)}}
+async function fetchScoreboardResilient(params={},timeout=25000){
+  let directError=null;
+  try{const raw=await fetchJson(scoreboardUrl(params),timeout);state.forecast.scoreboardProvider="direct";return raw}catch(err){directError=err;console.warn("CCMC direct blocked/unavailable; trying HELIOGUARD gateway:",err)}
+  const validation=Boolean(params?.CMEtimeStart&&params?.CMEtimeEnd&&(params?.closeOutCMEsOnly===true||String(params?.closeOutCMEsOnly)==="true"));
+  const first=validation?CONFIG.endpoints.scoreboardGateway90:CONFIG.endpoints.scoreboardGatewayRecent;
+  const second=validation?CONFIG.endpoints.scoreboardGatewayRecent:CONFIG.endpoints.scoreboardGateway90;
+  try{
+    let r=await fetchScoreboardGatewayFile(first,params,12000);
+    if(params.CMEID&&!r.events.length)r=await fetchScoreboardGatewayFile(second,params,12000);
+    if(params.CMEID&&!r.events.length)throw directError||new Error("CME not present in gateway cache");
+    state.forecast.scoreboardProvider="gateway";
+    return r.events
+  }catch(gatewayError){console.warn("HELIOGUARD CCMC gateway unavailable:",gatewayError);throw directError||gatewayError}
+}
+function markScoreboardProviderStatus(){const el=$("statusScoreboard");if(!el||!state.liveStarted)return;if(state.forecast.scoreboardProvider==="gateway"){el.textContent=hgT("متصل — بوابة GitHub","Connected — GitHub Gateway");el.style.color="var(--green)"}else if(state.forecast.scoreboardProvider==="direct"){el.textContent=hgT("متصل مباشر","Directly Connected");el.style.color="var(--green)"}}
+
 function dbmArrival(startIso,v0,w=400,gammaX=0.10,startAt21_5=true){
   const start=parseUtc(startIso),speed=safeNum(v0),wind=safeNum(w),gx=safeNum(gammaX);if(!start||speed===null||wind===null||gx===null||speed<100||wind<100||gx<=0)return null;
   const rs=695700,au=149597870.7,r0=startAt21_5?21.5*rs:rs*2.5,distance=Math.max(1,au-r0),gamma=gx*1e-7,u=speed-w,sgn=u>=0?1:-1,absu=Math.abs(u);
@@ -1538,9 +1565,9 @@ async function loadForecastForDossier(d=activeForecastDossier(),announce=true){
   const id=forecastCmeId(d);if(!d||!id){if(announce)toast("لا توجد حادثة CME صالحة.");return}
   state.forecast.cmeId=id;$("forecastCmeId").value=id;$("forecastDot").className="dot loading";$("forecastState").textContent="تحميل توقعات CCMC";$("loadForecastBtn").disabled=true;
   try{
-    const raw=await fetchJson(scoreboardUrl({CMEID:id,skipNoArrivalObservedCMEs:false,closeOutCMEsOnly:false}),25000),events=normalizeScoreboardPayload(raw);let event=events.find(x=>x.cmeID===id)||events[0]||null;
+    const raw=await fetchScoreboardResilient({CMEID:id,skipNoArrivalObservedCMEs:false,closeOutCMEsOnly:false},25000),events=normalizeScoreboardPayload(raw);let event=events.find(x=>x.cmeID===id)||events[0]||null;
     const predictions=Array.isArray(event?.predictions)?event.predictions.filter(x=>x?.predictedArrivalTime):[];state.forecast.event=event;state.forecast.predictions=predictions;state.forecast.local=buildLocalForecasts(d);state.forecast.consensus=calculateForecastSummary(event,predictions,d);state.forecast.independent=state.forecast.consensus.independent;state.forecast.confidence={score:state.forecast.consensus.score,label:state.forecast.consensus.label};
-    setServerStatus("scoreboard",true);$("forecastDot").className="dot online";$("forecastState").textContent=event?(HG_LANG==="en"?`${predictions.length} forecasts`:`${predictions.length} توقعًا`):hgT("لا توجد مطابقة في CCMC","No CCMC match found");renderForecastLab();if(announce)toast(event?"تم تحميل توقعات CCMC والتحقق منها.":"لم يعثر CCMC على هذه الحادثة؛ عُرضت النماذج المحلية فقط.");
+    setServerStatus("scoreboard",true);markScoreboardProviderStatus();$("forecastDot").className="dot online";$("forecastState").textContent=event?(HG_LANG==="en"?`${predictions.length} forecasts`:`${predictions.length} توقعًا`):hgT("لا توجد مطابقة في CCMC","No CCMC match found");renderForecastLab();if(announce)toast(event?"تم تحميل توقعات CCMC والتحقق منها.":"لم يعثر CCMC على هذه الحادثة؛ عُرضت النماذج المحلية فقط.");
   }catch(err){console.error("Scoreboard:",err);state.forecast.event=null;state.forecast.predictions=[];state.forecast.local=buildLocalForecasts(d);state.forecast.consensus=calculateForecastSummary(null,[],d);setServerStatus("scoreboard",false,"غير متاح/CORS");$("forecastDot").className="dot fail";$("forecastState").textContent="تعذر الاتصال — النماذج المحلية متاحة";renderForecastLab();if(announce)toast("تعذر الوصول إلى CCMC؛ تم الإبقاء على Ballistic وDBM المحليين.");
   }finally{$("loadForecastBtn").disabled=false}
 }
@@ -1568,7 +1595,7 @@ function exportForecastAudit(){const payload={schema:"HELIOGUARD_FORECAST_AUDIT_
 function validationRangeValid(start,end){const a=parseUtc(start+"T00:00:00Z"),b=parseUtc(end+"T23:59:59Z");if(!a||!b||b<a)return {ok:false,msg:"تحقق من تاريخي التحقق."};if((b-a)/86400000>90)return {ok:false,msg:"اجعل نافذة التحقق 90 يومًا أو أقل."};return {ok:true}}
 async function runValidationLab(){
   const start=$("validationStart").value,end=$("validationEnd").value,v=validationRangeValid(start,end);if(!v.ok){toast(v.msg);return}$("runValidationBtn").disabled=true;$("runValidationBtn").textContent="جارٍ الحساب…";
-  try{const raw=await fetchJson(scoreboardUrl({CMEtimeStart:start,CMEtimeEnd:end,skipNoArrivalObservedCMEs:true,closeOutCMEsOnly:true}),30000),events=normalizeScoreboardPayload(raw),by=new Map();events.forEach(ev=>(ev.predictions||[]).forEach(p=>{const e=safeNum(p.differenceInHrs);if(e===null||isAggregateMethod(p.predictedMethodName))return;const name=p.predictedMethodName||"Unknown";if(!by.has(name))by.set(name,[]);by.get(name).push(e)}));const metrics=[...by].map(([name,e])=>({name,n:e.length,mae:mean(e.map(Math.abs)),bias:mean(e),rmse:rms(e),within:e.filter(x=>Math.abs(x)<=12).length/e.length*100})).sort((a,b)=>b.n-a.n||a.mae-b.mae);state.forecast.validation=metrics;$("validationRows").innerHTML=metrics.length?metrics.map(m=>`<tr><td>${htmlEscape(m.name)}</td><td>${m.n}</td><td>${m.mae.toFixed(2)}س</td><td class="${errorClass(m.bias)}">${m.bias>0?"+":""}${m.bias.toFixed(2)}س</td><td>${m.rmse.toFixed(2)}س</td><td>${m.within.toFixed(0)}%</td></tr>`).join(""):`<tr><td colspan="6" class="empty">لا توجد حوادث مغلقة قابلة للتحقق في المدة.</td></tr>`;$("validationSummary").textContent=`الحوادث المرجعة: ${events.length} — الطرق المقيمة: ${metrics.length}. MAE متوسط الخطأ المطلق، والانحياز الموجب يعني توقعًا متأخرًا عن الرصد.`;setServerStatus("scoreboard",true)}catch(err){console.error("Validation:",err);$("validationRows").innerHTML='<tr><td colspan="6" class="empty">تعذر تحميل بيانات التحقق من CCMC.</td></tr>';$("validationSummary").textContent="قد يكون السبب اتصال الشبكة أو CORS في تشغيل file://.";setServerStatus("scoreboard",false,"غير متاح/CORS")}finally{$("runValidationBtn").disabled=false;$("runValidationBtn").textContent="حساب الأداء"}
+  try{const raw=await fetchScoreboardResilient({CMEtimeStart:start,CMEtimeEnd:end,skipNoArrivalObservedCMEs:true,closeOutCMEsOnly:true},30000),events=normalizeScoreboardPayload(raw),by=new Map();events.forEach(ev=>(ev.predictions||[]).forEach(p=>{const e=safeNum(p.differenceInHrs);if(e===null||isAggregateMethod(p.predictedMethodName))return;const name=p.predictedMethodName||"Unknown";if(!by.has(name))by.set(name,[]);by.get(name).push(e)}));const metrics=[...by].map(([name,e])=>({name,n:e.length,mae:mean(e.map(Math.abs)),bias:mean(e),rmse:rms(e),within:e.filter(x=>Math.abs(x)<=12).length/e.length*100})).sort((a,b)=>b.n-a.n||a.mae-b.mae);state.forecast.validation=metrics;$("validationRows").innerHTML=metrics.length?metrics.map(m=>`<tr><td>${htmlEscape(m.name)}</td><td>${m.n}</td><td>${m.mae.toFixed(2)}س</td><td class="${errorClass(m.bias)}">${m.bias>0?"+":""}${m.bias.toFixed(2)}س</td><td>${m.rmse.toFixed(2)}س</td><td>${m.within.toFixed(0)}%</td></tr>`).join(""):`<tr><td colspan="6" class="empty">لا توجد حوادث مغلقة قابلة للتحقق في المدة.</td></tr>`;$("validationSummary").textContent=`الحوادث المرجعة: ${events.length} — الطرق المقيمة: ${metrics.length}. MAE متوسط الخطأ المطلق، والانحياز الموجب يعني توقعًا متأخرًا عن الرصد.`;setServerStatus("scoreboard",true);markScoreboardProviderStatus()}catch(err){console.error("Validation:",err);$("validationRows").innerHTML='<tr><td colspan="6" class="empty">تعذر تحميل بيانات التحقق من CCMC.</td></tr>';$("validationSummary").textContent="قد يكون السبب اتصال الشبكة أو CORS في تشغيل file://.";setServerStatus("scoreboard",false,"غير متاح/CORS")}finally{$("runValidationBtn").disabled=false;$("runValidationBtn").textContent="حساب الأداء"}
 }
 function initializeValidationDates(){const end=new Date(),start=new Date(end.getTime()-30*86400000);$("validationStart").value=isoDate(start);$("validationEnd").value=isoDate(end)}
 
