@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://mralehsas.github.io/HELIOGUARD-ARABIA/sitemap.xml
