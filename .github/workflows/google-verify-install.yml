@@ -1,0 +1,69 @@
+name: Install Google Search Console Verification
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/google-verify-install.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag is not already installed
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          tag='<meta name="google-site-verification" content="Q1WXwE14uj-SmZwY_HMEIXT-RHMrkdeew_KEvrlMI38" />'
+          if tag in s:
+              raise SystemExit('Verification tag already present; refusing duplicate install.')
+          print('Precondition OK: verification tag absent.')
+          PY
+
+      - name: Install verification tag
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          anchor='  <meta name="author" content="الفيزيائي عمر الباز" />\n'
+          tag='  <meta name="google-site-verification" content="Q1WXwE14uj-SmZwY_HMEIXT-RHMrkdeew_KEvrlMI38" />\n'
+          if s.count(anchor) != 1:
+              raise SystemExit(f'Unsafe author anchor count: {s.count(anchor)}')
+          s=s.replace(anchor, anchor+tag, 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Verify installed tag
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          tag='<meta name="google-site-verification" content="Q1WXwE14uj-SmZwY_HMEIXT-RHMrkdeew_KEvrlMI38" />'
+          assert s.count(tag) == 1, f'Expected exactly one verification tag, found {s.count(tag)}'
+          head=s.split('</head>',1)[0]
+          assert tag in head, 'Verification tag is not inside <head>.'
+          print('Google verification tag: VALID')
+          PY
+          git diff --check
+
+      - name: Commit verification tag
+        shell: bash
+        run: |
+          git config user.name 'HELIOGUARD Search Verification'
+          git config user.email 'actions@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Add Google Search Console verification tag'
+          git pull --rebase origin main
+          git push origin main
