@@ -23,12 +23,20 @@ jobs:
         run: |
           set -e
           URL='https://kauai.ccmc.gsfc.nasa.gov/CMEscoreboard/WS/get/predictions'
-          echo '=== CCMC response headers (browser CORS evidence) ==='
+          echo '=== CCMC response headers ==='
           curl -sSIL --max-time 30 "$URL" | sed -n '1,35p' || true
           echo '=== Server-to-server JSON reachability ==='
           python - <<'PY'
-          import json, urllib.request
-          u='https://kauai.ccmc.gsfc.nasa.gov/CMEscoreboard/WS/get/predictions?CMEtimeStart=2026-08-01&CMEtimeEnd=2026-09-02&skipNoArrivalObservedCMEs=false&closeOutCMEsOnly=false'
+          import json, urllib.parse, urllib.request
+          from datetime import datetime, timedelta, timezone
+          now=datetime.now(timezone.utc)
+          q=urllib.parse.urlencode({
+              'CMEtimeStart':(now-timedelta(days=32)).date().isoformat(),
+              'CMEtimeEnd':now.date().isoformat(),
+              'skipNoArrivalObservedCMEs':'false',
+              'closeOutCMEsOnly':'false',
+          })
+          u='https://kauai.ccmc.gsfc.nasa.gov/CMEscoreboard/WS/get/predictions?'+q
           req=urllib.request.Request(u,headers={'User-Agent':'HELIOGUARD-ARABIA/1.0 (+GitHub Actions gateway diagnostics)','Accept':'application/json'})
           with urllib.request.urlopen(req,timeout=45) as r:
               data=json.load(r)
@@ -44,18 +52,13 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           s=Path('index.html').read_text(encoding='utf-8')
-          required=[
-            'fetchScoreboardResilient',
-            'scoreboardGatewayRecent',
-            'scoreboardGateway90',
-            'HELIOGUARD CCMC Gateway',
-          ]
+          required=['fetchScoreboardResilient','scoreboardGatewayRecent','scoreboardGateway90','HELIOGUARD CCMC Gateway']
           missing=[x for x in required if x not in s]
-          files=[Path('data/ccmc-scoreboard-recent.json'),Path('data/ccmc-scoreboard-90d.json'),Path('.github/workflows/ccmc-cache.yml')]
-          if missing or any(not p.exists() for p in files):
+          data_files=[Path('data/ccmc-scoreboard-recent.json'),Path('data/ccmc-scoreboard-90d.json')]
+          if missing or any(not p.exists() for p in data_files):
               print('Expected RED: resilient CCMC gateway not installed yet.')
               print('Missing markers:',missing)
-              print('Missing files:',[str(p) for p in files if not p.exists()])
+              print('Missing data:',[str(p) for p in data_files if not p.exists()])
               raise SystemExit(1)
           raise SystemExit('RED unexpectedly passed; refusing duplicate install.')
           PY
@@ -88,80 +91,6 @@ jobs:
                   'closeOutCMEsOnly':str(closed_only).lower(),
               })
               url=BASE+'?'+q
-              req=urllib.request.Request(url,headers={
-                  'User-Agent':'HELIOGUARD-ARABIA/1.0 (+GitHub Actions CCMC gateway)',
-                  'Accept':'application/json'
-              })
-              with urllib.request.urlopen(req,timeout=60) as r:
-                  events=json.load(r)
-                  if not isinstance(events,list):
-                      raise RuntimeError(f'Unexpected CCMC payload: {type(events).__name__}')
-              payload={
-                  'schema':'HELIOGUARD_CCMC_GATEWAY_V1',
-                  'fetchedAt':now.isoformat().replace('+00:00','Z'),
-                  'source':BASE,
-                  'query':{'CMEtimeStart':start,'CMEtimeEnd':end,'skipNoArrivalObservedCMEs':skip_no_arrival,'closeOutCMEsOnly':closed_only},
-                  'events':events,
-              }
-              Path(out).write_text(json.dumps(payload,ensure_ascii=False,separators=(',',':')),encoding='utf-8')
-              print(out,'events=',len(events))
-
-          fetch(45,False,False,'data/ccmc-scoreboard-recent.json')
-          fetch(90,True,False,'data/ccmc-scoreboard-90d.json')
-          PY
-
-      - name: Add persistent cache updater
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          Path('.github/workflows/ccmc-cache.yml').write_text(r'''name: HELIOGUARD CCMC Gateway Cache
-
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: '17 */2 * * *'
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/ccmc-cache.yml'
-
-permissions:
-  contents: write
-
-concurrency:
-  group: helioguard-ccmc-gateway-cache
-  cancel-in-progress: true
-
-jobs:
-  refresh:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Fetch NASA CCMC Scoreboard server-side
-        shell: bash
-        run: |
-          mkdir -p data
-          python - <<'PY2'
-          import json, urllib.parse, urllib.request
-          from datetime import datetime, timedelta, timezone
-          from pathlib import Path
-
-          BASE='https://kauai.ccmc.gsfc.nasa.gov/CMEscoreboard/WS/get/predictions'
-          now=datetime.now(timezone.utc)
-
-          def fetch(days, closed_only, skip_no_arrival, out):
-              start=(now-timedelta(days=days)).date().isoformat()
-              end=now.date().isoformat()
-              q=urllib.parse.urlencode({
-                  'CMEtimeStart':start,
-                  'CMEtimeEnd':end,
-                  'skipNoArrivalObservedCMEs':str(skip_no_arrival).lower(),
-                  'closeOutCMEsOnly':str(closed_only).lower(),
-              })
-              url=BASE+'?'+q
               req=urllib.request.Request(url,headers={'User-Agent':'HELIOGUARD-ARABIA/1.0 (+GitHub Actions CCMC gateway)','Accept':'application/json'})
               with urllib.request.urlopen(req,timeout=60) as r:
                   events=json.load(r)
@@ -173,34 +102,6 @@ jobs:
 
           fetch(45,False,False,'data/ccmc-scoreboard-recent.json')
           fetch(90,True,False,'data/ccmc-scoreboard-90d.json')
-          PY2
-      - name: Validate cache payloads
-        shell: bash
-        run: |
-          python - <<'PY2'
-          import json
-          from pathlib import Path
-          for f in ['data/ccmc-scoreboard-recent.json','data/ccmc-scoreboard-90d.json']:
-              p=json.loads(Path(f).read_text(encoding='utf-8'))
-              assert p.get('schema')=='HELIOGUARD_CCMC_GATEWAY_V1'
-              assert isinstance(p.get('events'),list)
-              assert p.get('fetchedAt') and p.get('source','').startswith('https://kauai.ccmc.gsfc.nasa.gov/')
-              print(f,'OK',len(p['events']))
-          PY2
-      - name: Commit refreshed gateway data
-        shell: bash
-        run: |
-          git config user.name 'HELIOGUARD CCMC Gateway'
-          git config user.email 'actions@users.noreply.github.com'
-          git add data/ccmc-scoreboard-recent.json data/ccmc-scoreboard-90d.json
-          if git diff --cached --quiet; then
-            echo 'No cache change.'
-            exit 0
-          fi
-          git commit -m 'Refresh NASA CCMC gateway cache'
-          git pull --rebase origin main
-          git push origin main
-''',encoding='utf-8')
           PY
 
       - name: Patch frontend for direct plus gateway fallback
@@ -213,19 +114,16 @@ jobs:
 
           old='    scoreboard: "https://kauai.ccmc.gsfc.nasa.gov/CMEscoreboard/WS/get/predictions",'
           new='    scoreboard: "https://kauai.ccmc.gsfc.nasa.gov/CMEscoreboard/WS/get/predictions",\n    scoreboardGatewayRecent: "data/ccmc-scoreboard-recent.json",\n    scoreboardGateway90: "data/ccmc-scoreboard-90d.json",'
-          if s.count(old)!=1:
-              raise SystemExit(f'Unsafe CONFIG patch count: {s.count(old)}')
+          if s.count(old)!=1: raise SystemExit(f'Unsafe CONFIG patch count: {s.count(old)}')
           s=s.replace(old,new,1)
 
           old_ccmc='    {id:"ccmc",agency:"NASA CCMC",name:"CME Scoreboard",role:"توقعات وصول CME متعددة النماذج والتحقق التاريخي.",fresh:null,endpoints:[{label:"Predictions",url:scoreboardUrl({CMEtimeStart:r30.start,CMEtimeEnd:r30.end,skipNoArrivalObservedCMEs:false,closeOutCMEsOnly:false}),kind:"json",timeout:30000}],time:d=>null,count:d=>Array.isArray(d)?d.length:(Array.isArray(d?.events)?d.events.length:0),valid:d=>Array.isArray(d)||Array.isArray(d?.events)||typeof d==="object"},'
           new_ccmc='    {id:"ccmc",agency:"NASA CCMC",name:"CME Scoreboard",role:"توقعات وصول CME متعددة النماذج والتحقق التاريخي.",fresh:180,endpoints:[{label:"HELIOGUARD CCMC Gateway",url:`${CONFIG.endpoints.scoreboardGatewayRecent}?v=${Date.now()}`,kind:"json",timeout:12000},{label:"NASA CCMC Direct",url:scoreboardUrl({CMEtimeStart:r30.start,CMEtimeEnd:r30.end,skipNoArrivalObservedCMEs:false,closeOutCMEsOnly:false}),kind:"json",timeout:30000}],time:d=>d?.fetchedAt||null,count:d=>Array.isArray(d)?d.length:(Array.isArray(d?.events)?d.events.length:0),valid:d=>Array.isArray(d)||Array.isArray(d?.events)||typeof d==="object"},'
-          if s.count(old_ccmc)!=1:
-              raise SystemExit(f'Unsafe CCMC service patch count: {s.count(old_ccmc)}')
+          if s.count(old_ccmc)!=1: raise SystemExit(f'Unsafe CCMC service patch count: {s.count(old_ccmc)}')
           s=s.replace(old_ccmc,new_ccmc,1)
 
           anchor='function scoreboardUrl(params){const u=new URL(CONFIG.endpoints.scoreboard);Object.entries(params).forEach(([k,v])=>v!==null&&v!==undefined&&v!==""&&u.searchParams.set(k,String(v)));return u.toString()}'
-          if s.count(anchor)!=1:
-              raise SystemExit(f'Unsafe helper anchor count: {s.count(anchor)}')
+          if s.count(anchor)!=1: raise SystemExit(f'Unsafe helper anchor count: {s.count(anchor)}')
           helper=r'''
 function filterGatewayScoreboard(events,params={}){
   let out=Array.isArray(events)?events.slice():[];
@@ -266,7 +164,6 @@ function markScoreboardProviderStatus(){const el=$("statusScoreboard");if(!el||!
 
           s=s.replace('setServerStatus("scoreboard",true);$("forecastDot")','setServerStatus("scoreboard",true);markScoreboardProviderStatus();$("forecastDot")',1)
           s=s.replace('setServerStatus("scoreboard",true)}catch(err){console.error("Validation:', 'setServerStatus("scoreboard",true);markScoreboardProviderStatus()}catch(err){console.error("Validation:',1)
-
           p.write_text(s,encoding='utf-8')
           PY
 
@@ -299,6 +196,7 @@ function markScoreboardProviderStatus(){const el=$("statusScoreboard");if(!el||!
         run: |
           git config user.name 'HELIOGUARD Gateway Installer'
           git config user.email 'actions@users.noreply.github.com'
-          git add index.html data/ccmc-scoreboard-recent.json data/ccmc-scoreboard-90d.json .github/workflows/ccmc-cache.yml
+          git add index.html data/ccmc-scoreboard-recent.json data/ccmc-scoreboard-90d.json
           git commit -m 'Add resilient NASA CCMC gateway fallback'
+          git pull --rebase origin main
           git push origin main
