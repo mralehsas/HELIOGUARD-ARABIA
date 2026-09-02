@@ -1,4 +1,4 @@
-name: One-shot SEO patch
+name: Inspect About Dialog
 
 on:
   push:
@@ -7,102 +7,32 @@ on:
       - '.github/workflows/seo-once.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  seo:
+  inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: RED - prove SEO requirements are not already satisfied
-        id: red
-        continue-on-error: true
+      - uses: actions/checkout@v4
+      - name: Inspect About-related snippets
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
           s = Path('index.html').read_text(encoding='utf-8')
-          required = [
-              '<title>الدرع الشمسي العربي | HELIOGUARD ARABIA | عمر الباز</title>',
-              'rel="canonical" href="https://mralehsas.github.io/HELIOGUARD-ARABIA/"',
-              'property="og:title" content="الدرع الشمسي العربي | HELIOGUARD ARABIA"',
-              'application/ld+json',
-          ]
-          missing = [x for x in required if x not in s]
-          if missing:
-              print('Expected RED: missing SEO requirements:')
-              for x in missing:
-                  print(' -', x)
-              raise SystemExit(1)
-          print('Unexpected: SEO requirements already present')
+          needles = ['حول البرنامج','حول','about','About','modal','openAbout','showAbout']
+          for needle in needles:
+              print('\n===== NEEDLE:', needle, '=====')
+              start = 0
+              count = 0
+              while True:
+                  i = s.find(needle, start)
+                  if i < 0: break
+                  count += 1
+                  a = max(0, i-1200); b = min(len(s), i+2400)
+                  print(f'--- occurrence {count} at {i} ---')
+                  print(s[a:b])
+                  start = i + len(needle)
+                  if count >= 12: break
+              print('COUNT', count)
           PY
-
-      - name: Confirm RED failed for the intended reason
-        if: steps.red.outcome != 'failure'
-        run: |
-          echo 'RED test did not fail; refusing to patch.'
-          exit 1
-
-      - name: Patch index.html and add crawler files
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import base64
-          p = Path('index.html')
-          s = p.read_text(encoding='utf-8')
-          old = base64.b64decode('ICA8bWV0YSBuYW1lPSJkZXNjcmlwdGlvbiIgY29udGVudD0iSEVMSU9HVUFSRCBBUkFCSUEg4oCUINmE2YjYrdipINi52LHYqNmK2Kkg2K3ZitmR2Kkg2YTZhdix2KfZgtio2Kkg2KfZhNi32YLYsyDYp9mE2YHYttin2KbZiiDZhdmGINmF2LXYp9iv2LEgTkFTQSDZiE5PQUEg2KfZhNix2LPZhdmK2KkuIiAvPgogIDx0aXRsZT5IRUxJT0dVQVJEIEFSQUJJQSB2MS4wLjMg4oCUIERpc2Nvbm5lY3RlZCBTdGFydDwvdGl0bGU+').decode('utf-8')
-          new = base64.b64decode('ICA8bWV0YSBuYW1lPSJkZXNjcmlwdGlvbiIgY29udGVudD0i2KfZhNiv2LHYuSDYp9mE2LTZhdiz2Yog2KfZhNi52LHYqNmKIEhFTElPR1VBUkQgQVJBQklBINmF2YbYtdipINi52LHYqNmK2Kkg2YTZhdix2KfZgtio2Kkg2KfZhNi32YLYsyDYp9mE2YHYttin2KbZiiDZiNin2YTZhti02KfYtyDYp9mE2LTZhdiz2Yog2YjYp9mE2LHZitin2K0g2KfZhNi02YXYs9mK2Kkg2YjZhdik2LTYsSBLcCDZiEJ6INmI2KfZhNiq2YjZh9is2KfYqiDYp9mE2LTZhdiz2YrYqS4g2KXYudiv2KfYryDZiNiq2LfZiNmK2LEg2KfZhNmB2YrYstmK2KfYptmKINi52YXYsSDYp9mE2KjYp9iyLiIgLz4KICA8bWV0YSBuYW1lPSJrZXl3b3JkcyIgY29udGVudD0i2KfZhNiv2LHYuSDYp9mE2LTZhdiz2Yog2KfZhNi52LHYqNmKLCBIRUxJT0dVQVJEIEFSQUJJQSwg2LnZhdixINin2YTYqNin2LIsINin2YTZgdmK2LLZitin2KbZiiDYudmF2LEg2KfZhNio2KfYsiwg2KfZhNi32YLYsyDYp9mE2YHYttin2KbZiiwg2KfZhNmG2LTYp9i3INin2YTYtNmF2LPZiiwg2KfZhNix2YrYp9itINin2YTYtNmF2LPZitipLCBLcCwgQnosINin2YTYqtmI2YfYrNin2Kog2KfZhNi02YXYs9mK2KksIFNwYWNlIFdlYXRoZXIsIFNvbGFyIFdlYXRoZXIiIC8+CiAgPG1ldGEgbmFtZT0iYXV0aG9yIiBjb250ZW50PSLYp9mE2YHZitiy2YrYp9im2Yog2LnZhdixINin2YTYqNin2LIiIC8+CiAgPG1ldGEgbmFtZT0icm9ib3RzIiBjb250ZW50PSJpbmRleCwgZm9sbG93LCBtYXgtaW1hZ2UtcHJldmlldzpsYXJnZSIgLz4KICA8bGluayByZWw9ImNhbm9uaWNhbCIgaHJlZj0iaHR0cHM6Ly9tcmFsZWhzYXMuZ2l0aHViLmlvL0hFTElPR1VBUkQtQVJBQklBLyIgLz4KCiAgPG1ldGEgcHJvcGVydHk9Im9nOnR5cGUiIGNvbnRlbnQ9IndlYnNpdGUiIC8+CiAgPG1ldGEgcHJvcGVydHk9Im9nOmxvY2FsZSIgY29udGVudD0iYXJfQVIiIC8+CiAgPG1ldGEgcHJvcGVydHk9Im9nOnNpdGVfbmFtZSIgY29udGVudD0iSEVMSU9HVUFSRCBBUkFCSUEiIC8+CiAgPG1ldGEgcHJvcGVydHk9Im9nOnRpdGxlIiBjb250ZW50PSLYp9mE2K/Ysdi5INin2YTYtNmF2LPZiiDYp9mE2LnYsdio2YogfCBIRUxJT0dVQVJEIEFSQUJJQSIgLz4KICA8bWV0YSBwcm9wZXJ0eT0ib2c6ZGVzY3JpcHRpb24iIGNvbnRlbnQ9ItmF2YbYtdipINi52LHYqNmK2Kkg2YTZhdix2KfZgtio2Kkg2KfZhNi32YLYsyDYp9mE2YHYttin2KbZiiDZiNin2YTZhti02KfYtyDYp9mE2LTZhdiz2Yog2YjYp9mE2LHZitin2K0g2KfZhNi02YXYs9mK2Kkg2YjZhdik2LTYsdin2KogS3Ag2YhCeiDZiNin2YTYqtmI2YfYrNin2Kog2KfZhNi02YXYs9mK2KkuIiAvPgogIDxtZXRhIHByb3BlcnR5PSJvZzp1cmwiIGNvbnRlbnQ9Imh0dHBzOi8vbXJhbGVoc2FzLmdpdGh1Yi5pby9IRUxJT0dVQVJELUFSQUJJQS8iIC8+CiAgPG1ldGEgbmFtZT0idHdpdHRlcjpjYXJkIiBjb250ZW50PSJzdW1tYXJ5IiAvPgogIDxtZXRhIG5hbWU9InR3aXR0ZXI6dGl0bGUiIGNvbnRlbnQ9Itin2YTYr9ix2Lkg2KfZhNi02YXYs9mKINin2YTYudix2KjZiiB8IEhFTElPR1VBUkQgQVJBQklBIiAvPgogIDxtZXRhIG5hbWU9InR3aXR0ZXI6ZGVzY3JpcHRpb24iIGNvbnRlbnQ9ItmF2YbYtdipINi52LHYqNmK2Kkg2YTZhdix2KfZgtio2Kkg2KfZhNi32YLYsyDYp9mE2YHYttin2KbZiiDZiNin2YTZhti02KfYtyDYp9mE2LTZhdiz2Yog4oCUINil2LnYr9in2K8g2YjYqti32YjZitixINin2YTZgdmK2LLZitin2KbZiiDYudmF2LEg2KfZhNio2KfYsi4iIC8+CgogIDxzY3JpcHQgdHlwZT0iYXBwbGljYXRpb24vbGQranNvbiI+CiAgewogICAgIkBjb250ZXh0IjogImh0dHBzOi8vc2NoZW1hLm9yZyIsCiAgICAiQHR5cGUiOiAiU29mdHdhcmVBcHBsaWNhdGlvbiIsCiAgICAibmFtZSI6ICJIRUxJT0dVQVJEIEFSQUJJQSIsCiAgICAiYWx0ZXJuYXRlTmFtZSI6ICLYp9mE2K/Ysdi5INin2YTYtNmF2LPZiiDYp9mE2LnYsdio2YoiLAogICAgInVybCI6ICJodHRwczovL21yYWxlaHNhcy5naXRodWIuaW8vSEVMSU9HVUFSRC1BUkFCSUEvIiwKICAgICJhcHBsaWNhdGlvbkNhdGVnb3J5IjogIlNjaWVuY2VBcHBsaWNhdGlvbiIsCiAgICAib3BlcmF0aW5nU3lzdGVtIjogIldlYiIsCiAgICAiaW5MYW5ndWFnZSI6IFsiYXIiLCAiZW4iXSwKICAgICJkZXNjcmlwdGlvbiI6ICLZhdmG2LXYqSDYudix2KjZitipINmE2YXYsdin2YLYqNipINin2YTYt9mC2LMg2KfZhNmB2LbYp9im2Yog2YjYp9mE2YbYtNin2Lcg2KfZhNi02YXYs9mKINmI2KfZhNix2YrYp9itINin2YTYtNmF2LPZitipINmI2YXYpNi02LHYp9iqIEtwINmIQnog2YjYp9mE2KrZiNmH2KzYp9iqINin2YTYtNmF2LPZitipLiIsCiAgICAiYXV0aG9yIjogewogICAgICAiQHR5cGUiOiAiUGVyc29uIiwKICAgICAgIm5hbWUiOiAi2KfZhNmB2YrYstmK2KfYptmKINi52YXYsSDYp9mE2KjYp9iyIgogICAgfQogIH0KICA8L3NjcmlwdD4KICA8dGl0bGU+2KfZhNiv2LHYuSDYp9mE2LTZhdiz2Yog2KfZhNi52LHYqNmKIHwgSEVMSU9HVUFSRCBBUkFCSUEgfCDYudmF2LEg2KfZhNio2KfYsjwvdGl0bGU+').decode('utf-8')
-          if old not in s:
-              raise SystemExit('Expected original head block not found; refusing unsafe patch.')
-          if s.count(old) != 1:
-              raise SystemExit('Original head block is not unique; refusing unsafe patch.')
-          p.write_text(s.replace(old, new, 1), encoding='utf-8')
-          Path('robots.txt').write_text('User-agent: *\nAllow: /\n\nSitemap: https://mralehsas.github.io/HELIOGUARD-ARABIA/sitemap.xml\n', encoding='utf-8')
-          Path('sitemap.xml').write_text(base64.b64decode('PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHVybHNldCB4bWxucz0iaHR0cDovL3d3dy5zaXRlbWFwcy5vcmcvc2NoZW1hcy9zaXRlbWFwLzAuOSI+CiAgPHVybD4KICAgIDxsb2M+aHR0cHM6Ly9tcmFsZWhzYXMuZ2l0aHViLmlvL0hFTElPR1VBUkQtQVJBQklBLzwvbG9jPgogICAgPGxhc3Rtb2Q+MjAyNi0wOS0wMjwvbGFzdG1vZD4KICAgIDxjaGFuZ2VmcmVxPmRhaWx5PC9jaGFuZ2VmcmVxPgogICAgPHByaW9yaXR5PjEuMDwvcHJpb3JpdHk+CiAgPC91cmw+CjwvdXJsc2V0Pgo='), encoding='utf-8')
-          PY
-
-      - name: GREEN - verify SEO requirements
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import xml.etree.ElementTree as ET
-          s = Path('index.html').read_text(encoding='utf-8')
-          checks = {
-              'title': '<title>الدرع الشمسي العربي | HELIOGUARD ARABIA | عمر الباز</title>',
-              'description': 'name="description" content="الدرع الشمسي العربي HELIOGUARD ARABIA',
-              'canonical': 'rel="canonical" href="https://mralehsas.github.io/HELIOGUARD-ARABIA/"',
-              'robots meta': 'name="robots" content="index, follow, max-image-preview:large"',
-              'Open Graph': 'property="og:title" content="الدرع الشمسي العربي | HELIOGUARD ARABIA"',
-              'JSON-LD': 'type="application/ld+json"',
-              'author': 'name="author" content="الفيزيائي عمر الباز"',
-          }
-          missing = [name for name, needle in checks.items() if needle not in s]
-          if missing:
-              raise SystemExit('Missing SEO checks: ' + ', '.join(missing))
-          robots = Path('robots.txt').read_text(encoding='utf-8')
-          assert 'User-agent: *' in robots
-          assert 'Allow: /' in robots
-          assert 'Sitemap: https://mralehsas.github.io/HELIOGUARD-ARABIA/sitemap.xml' in robots
-          root = ET.parse('sitemap.xml').getroot()
-          assert root.tag.endswith('urlset')
-          xml_text = Path('sitemap.xml').read_text(encoding='utf-8')
-          assert '<loc>https://mralehsas.github.io/HELIOGUARD-ARABIA/</loc>' in xml_text
-          print('GREEN: all SEO checks passed')
-          PY
-          git diff --check
-
-      - name: Commit SEO changes and remove one-shot workflow
-        shell: bash
-        run: |
-          git config user.name "HELIOGUARD SEO Bot"
-          git config user.email "actions@users.noreply.github.com"
-          git rm .github/workflows/seo-once.yml
-          git add index.html robots.txt sitemap.xml
-          git commit -m "Improve HELIOGUARD ARABIA search visibility"
-          git push
