@@ -1,0 +1,118 @@
+name: Fix HELIOGUARD CCMC Live Status
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ccmc-live-status-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: RED - reproduce missing CCMC live probe
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          live='await Promise.allSettled([loadSolarWind(),loadKp(),loadAlerts(),loadImpactData(),loadEarthContext()]);'
+          assert live in s, 'Expected current live-cycle anchor was not found.'
+          assert 'async function probeScoreboardConnection(){' not in s, 'Probe already exists; RED precondition invalid.'
+          assert 'if(DEMO_MODE&&state.forecast.cmeId)await loadForecastForDossier(activeForecastDossier(),false);' in s
+          print('RED confirmed: LIVE cycle does not probe CCMC; only DEMO auto-loads forecast.')
+          PY
+
+      - name: Add CCMC live health probe
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          start='async function startLiveConnection(){'
+          if s.count(start) != 1:
+              raise SystemExit(f'Unsafe startLiveConnection anchor count: {s.count(start)}')
+          probe=r'''async function probeScoreboardConnection(){
+  const params={skipNoArrivalObservedCMEs:false,closeOutCMEsOnly:false};
+  try{
+    const r=await fetchScoreboardGatewayFile(CONFIG.endpoints.scoreboardGatewayRecent,params,12000);
+    const fetchedAt=parseUtc(r.raw?.fetchedAt);
+    const ageMinutes=fetchedAt?Math.max(0,(Date.now()-fetchedAt.getTime())/60000):Infinity;
+    if(r.raw?.schema!=="HELIOGUARD_CCMC_GATEWAY_V1"||!Array.isArray(r.events))throw new Error("Invalid HELIOGUARD CCMC gateway payload");
+    if(!Number.isFinite(ageMinutes)||ageMinutes>360)throw new Error(`Stale HELIOGUARD CCMC gateway cache: ${ageMinutes.toFixed?.(1)??"?"} min`);
+    state.forecast.scoreboardProvider="gateway";
+    setServerStatus("scoreboard",true);
+    markScoreboardProviderStatus();
+    return true;
+  }catch(gatewayError){
+    console.warn("HELIOGUARD CCMC live gateway probe failed; trying direct CCMC:",gatewayError);
+    try{
+      const r7=dateRange(7);
+      const raw=await fetchJson(scoreboardUrl({CMEtimeStart:r7.start,CMEtimeEnd:r7.end,skipNoArrivalObservedCMEs:false,closeOutCMEsOnly:false}),15000);
+      const events=normalizeScoreboardPayload(raw);
+      if(!Array.isArray(events))throw new Error("Invalid direct CCMC payload");
+      state.forecast.scoreboardProvider="direct";
+      setServerStatus("scoreboard",true);
+      markScoreboardProviderStatus();
+      return true;
+    }catch(directError){
+      console.warn("NASA CCMC live probe unavailable:",directError);
+      setServerStatus("scoreboard",false,"غير متاح");
+      return false;
+    }
+  }
+}
+'''
+          s=s.replace(start,probe+'\n'+start,1)
+          old='await Promise.allSettled([loadSolarWind(),loadKp(),loadAlerts(),loadImpactData(),loadEarthContext()]);'
+          new='await Promise.allSettled([loadSolarWind(),loadKp(),loadAlerts(),loadImpactData(),loadEarthContext(),probeScoreboardConnection()]);'
+          if s.count(old) != 1:
+              raise SystemExit(f'Unsafe live-cycle anchor count: {s.count(old)}')
+          s=s.replace(old,new,1)
+          p.write_text(s,encoding='utf-8')
+          PY
+
+      - name: GREEN - verify CCMC is part of LIVE cycle
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          checks=[
+            'async function probeScoreboardConnection(){',
+            'fetchScoreboardGatewayFile(CONFIG.endpoints.scoreboardGatewayRecent,params,12000)',
+            'r.raw?.schema!=="HELIOGUARD_CCMC_GATEWAY_V1"',
+            'ageMinutes>360',
+            'state.forecast.scoreboardProvider="gateway"',
+            'setServerStatus("scoreboard",true);',
+            'markScoreboardProviderStatus();',
+            'loadEarthContext(),probeScoreboardConnection()]);'
+          ]
+          missing=[x for x in checks if x not in s]
+          assert not missing, missing
+          assert s.count('async function probeScoreboardConnection(){') == 1
+          assert s.count('loadEarthContext(),probeScoreboardConnection()]);') == 1
+          assert '<meta name="google-site-verification" content="Q1WXwE14uj-SmZwY_HMEIXT-RHMrkdeew_KEvrlMI38" />' in s
+          assert '<title>الدرع الشمسي العربي | HELIOGUARD ARABIA</title>' in s
+          print('GREEN: CCMC live status probe wired into the normal LIVE cycle; SEO verification preserved.')
+          PY
+          git diff --check
+
+      - name: Commit CCMC live status fix
+        shell: bash
+        run: |
+          git config user.name 'HELIOGUARD CCMC Fix'
+          git config user.email 'actions@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Connect CCMC status in live update cycle'
+          git pull --rebase origin main
+          git push origin main
