@@ -1,0 +1,159 @@
+name: One-shot SEO patch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/seo-once.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  seo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: RED - prove SEO requirements are not already satisfied
+        id: red
+        continue-on-error: true
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path('index.html').read_text(encoding='utf-8')
+          required = [
+              '<title>الدرع الشمسي العربي | HELIOGUARD ARABIA | عمر الباز</title>',
+              'rel="canonical" href="https://mralehsas.github.io/HELIOGUARD-ARABIA/"',
+              'property="og:title" content="الدرع الشمسي العربي | HELIOGUARD ARABIA"',
+              'application/ld+json',
+          ]
+          missing = [x for x in required if x not in s]
+          if missing:
+              print('Expected RED: missing SEO requirements:')
+              for x in missing:
+                  print(' -', x)
+              raise SystemExit(1)
+          print('Unexpected: SEO requirements already present')
+          PY
+
+      - name: Confirm RED failed for the intended reason
+        if: steps.red.outcome != 'failure'
+        run: |
+          echo 'RED test did not fail; refusing to patch.'
+          exit 1
+
+      - name: Patch index.html and add crawler files
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          old = '''  <meta name="description" content="HELIOGUARD ARABIA — لوحة عربية حيّة لمراقبة الطقس الفضائي من مصادر NASA وNOAA الرسمية." />
+  <title>HELIOGUARD ARABIA v1.0.3 — Disconnected Start</title>'''
+          new = '''  <meta name="description" content="الدرع الشمسي العربي HELIOGUARD ARABIA منصة عربية لمراقبة الطقس الفضائي والنشاط الشمسي والرياح الشمسية ومؤشر Kp وBz والتوهجات الشمسية. إعداد وتطوير الفيزيائي عمر الباز." />
+  <meta name="keywords" content="الدرع الشمسي العربي, HELIOGUARD ARABIA, عمر الباز, الفيزيائي عمر الباز, الطقس الفضائي, النشاط الشمسي, الرياح الشمسية, Kp, Bz, التوهجات الشمسية, Space Weather, Solar Weather" />
+  <meta name="author" content="الفيزيائي عمر الباز" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <link rel="canonical" href="https://mralehsas.github.io/HELIOGUARD-ARABIA/" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="ar_AR" />
+  <meta property="og:site_name" content="HELIOGUARD ARABIA" />
+  <meta property="og:title" content="الدرع الشمسي العربي | HELIOGUARD ARABIA" />
+  <meta property="og:description" content="منصة عربية لمراقبة الطقس الفضائي والنشاط الشمسي والرياح الشمسية ومؤشرات Kp وBz والتوهجات الشمسية." />
+  <meta property="og:url" content="https://mralehsas.github.io/HELIOGUARD-ARABIA/" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="الدرع الشمسي العربي | HELIOGUARD ARABIA" />
+  <meta name="twitter:description" content="منصة عربية لمراقبة الطقس الفضائي والنشاط الشمسي — إعداد وتطوير الفيزيائي عمر الباز." />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "HELIOGUARD ARABIA",
+    "alternateName": "الدرع الشمسي العربي",
+    "url": "https://mralehsas.github.io/HELIOGUARD-ARABIA/",
+    "applicationCategory": "ScienceApplication",
+    "operatingSystem": "Web",
+    "inLanguage": ["ar", "en"],
+    "description": "منصة عربية لمراقبة الطقس الفضائي والنشاط الشمسي والرياح الشمسية ومؤشرات Kp وBz والتوهجات الشمسية.",
+    "author": {
+      "@type": "Person",
+      "name": "الفيزيائي عمر الباز"
+    }
+  }
+  </script>
+  <title>الدرع الشمسي العربي | HELIOGUARD ARABIA | عمر الباز</title>'''
+
+          if old not in s:
+              raise SystemExit('Expected original head block not found; refusing unsafe patch.')
+          if s.count(old) != 1:
+              raise SystemExit('Original head block is not unique; refusing unsafe patch.')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+
+          Path('robots.txt').write_text(
+              'User-agent: *\nAllow: /\n\nSitemap: https://mralehsas.github.io/HELIOGUARD-ARABIA/sitemap.xml\n',
+              encoding='utf-8'
+          )
+          Path('sitemap.xml').write_text('''<?xml version="1.0" encoding="UTF-8"?>
+          <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+            <url>
+              <loc>https://mralehsas.github.io/HELIOGUARD-ARABIA/</loc>
+              <lastmod>2026-09-02</lastmod>
+              <changefreq>daily</changefreq>
+              <priority>1.0</priority>
+            </url>
+          </urlset>
+          '''.replace('          ', ''), encoding='utf-8')
+          PY
+
+      - name: GREEN - verify SEO requirements
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          s = Path('index.html').read_text(encoding='utf-8')
+          checks = {
+              'title': '<title>الدرع الشمسي العربي | HELIOGUARD ARABIA | عمر الباز</title>',
+              'description': 'name="description" content="الدرع الشمسي العربي HELIOGUARD ARABIA',
+              'canonical': 'rel="canonical" href="https://mralehsas.github.io/HELIOGUARD-ARABIA/"',
+              'robots meta': 'name="robots" content="index, follow, max-image-preview:large"',
+              'Open Graph': 'property="og:title" content="الدرع الشمسي العربي | HELIOGUARD ARABIA"',
+              'JSON-LD': 'type="application/ld+json"',
+              'author': 'name="author" content="الفيزيائي عمر الباز"',
+          }
+          missing = [name for name, needle in checks.items() if needle not in s]
+          if missing:
+              raise SystemExit('Missing SEO checks: ' + ', '.join(missing))
+
+          robots = Path('robots.txt').read_text(encoding='utf-8')
+          assert 'User-agent: *' in robots
+          assert 'Allow: /' in robots
+          assert 'Sitemap: https://mralehsas.github.io/HELIOGUARD-ARABIA/sitemap.xml' in robots
+
+          root = ET.parse('sitemap.xml').getroot()
+          assert root.tag.endswith('urlset')
+          xml_text = Path('sitemap.xml').read_text(encoding='utf-8')
+          assert '<loc>https://mralehsas.github.io/HELIOGUARD-ARABIA/</loc>' in xml_text
+          print('GREEN: all SEO checks passed')
+          PY
+          git diff --check
+
+      - name: Commit SEO changes and remove one-shot workflow
+        shell: bash
+        run: |
+          git config user.name "HELIOGUARD SEO Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git rm .github/workflows/seo-once.yml
+          git add index.html robots.txt sitemap.xml
+          git commit -m "Improve HELIOGUARD ARABIA search visibility"
+          git push
